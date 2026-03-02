@@ -46,7 +46,8 @@ Alternatively, pass the owner and repository via Maven properties:
 ```bash
 mvn deploy -P github-packages \
   -Dgithub.packages.owner=YOUR_USER \
-  -Dgithub.packages.repo=YOUR_REPO
+  -Dgithub.packages.repo=YOUR_REPO \
+  -DskipTests
 ```
 
 ## 3. Publishing artifacts
