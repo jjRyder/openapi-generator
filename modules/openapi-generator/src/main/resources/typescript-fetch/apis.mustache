@@ -363,44 +363,96 @@ export class {{classname}} extends runtime.BaseAPI {
         const requestOptions = await this.{{nickname}}RequestOpts({{#allParams.0}}requestParameters{{/allParams.0}});
         const response = await this.request(requestOptions, initOverrides);
 
-        {{#returnType}}
-        {{#isResponseFile}}
-        return new runtime.BlobApiResponse(response);
-        {{/isResponseFile}}
-        {{^isResponseFile}}
-        {{#returnTypeIsPrimitive}}
-        {{#isMap}}
-        return new runtime.JSONApiResponse<any>(response);
-        {{/isMap}}
-        {{#isArray}}
-        return new runtime.JSONApiResponse<any>(response);
-        {{/isArray}}
-        {{#returnSimpleType}}
-        if (this.isJsonMime(response.headers.get('content-type'))) {
-            return new runtime.JSONApiResponse<{{returnType}}>(response);
-        } else {
-            return new runtime.TextApiResponse(response) as any;
+        // Handle all response status codes
+        {{#responses}}
+        {{#is2xx}}
+        if (response.status === {{code}}) {
+            {{#returnType}}
+            {{#isResponseFile}}
+            return new runtime.BlobApiResponse(response);
+            {{/isResponseFile}}
+            {{^isResponseFile}}
+            {{#returnTypeIsPrimitive}}
+            {{#isMap}}
+            return new runtime.JSONApiResponse<any>(response);
+            {{/isMap}}
+            {{#isArray}}
+            return new runtime.JSONApiResponse<any>(response);
+            {{/isArray}}
+            {{#returnSimpleType}}
+            if (this.isJsonMime(response.headers.get('content-type'))) {
+                return new runtime.JSONApiResponse<{{returnType}}>(response);
+            } else {
+                return new runtime.TextApiResponse(response) as any;
+            }
+            {{/returnSimpleType}}
+            {{/returnTypeIsPrimitive}}
+            {{^returnTypeIsPrimitive}}
+            {{#isArray}}
+            return new runtime.JSONApiResponse(response{{^withoutRuntimeChecks}}, (jsonValue) => {{#uniqueItems}}new Set({{/uniqueItems}}jsonValue.map({{returnBaseType}}FromJSON){{/withoutRuntimeChecks}}){{#uniqueItems}}){{/uniqueItems}};
+            {{/isArray}}
+            {{^isArray}}
+            {{#isMap}}
+            return new runtime.JSONApiResponse(response{{^withoutRuntimeChecks}}, (jsonValue) => runtime.mapValues(jsonValue, {{returnBaseType}}FromJSON){{/withoutRuntimeChecks}});
+            {{/isMap}}
+            {{^isMap}}
+            return new runtime.JSONApiResponse(response{{^withoutRuntimeChecks}}, (jsonValue) => {{returnBaseType}}FromJSON(jsonValue){{/withoutRuntimeChecks}});
+            {{/isMap}}
+            {{/isArray}}
+            {{/returnTypeIsPrimitive}}
+            {{/isResponseFile}}
+            {{/returnType}}
+            {{^returnType}}
+            return new runtime.VoidApiResponse(response);
+            {{/returnType}}
         }
-        {{/returnSimpleType}}
-        {{/returnTypeIsPrimitive}}
-        {{^returnTypeIsPrimitive}}
-        {{#isArray}}
-        return new runtime.JSONApiResponse(response{{^withoutRuntimeChecks}}, (jsonValue) => {{#uniqueItems}}new Set({{/uniqueItems}}jsonValue.map({{returnBaseType}}FromJSON){{/withoutRuntimeChecks}}){{#uniqueItems}}){{/uniqueItems}};
-        {{/isArray}}
-        {{^isArray}}
-        {{#isMap}}
-        return new runtime.JSONApiResponse(response{{^withoutRuntimeChecks}}, (jsonValue) => runtime.mapValues(jsonValue, {{returnBaseType}}FromJSON){{/withoutRuntimeChecks}});
-        {{/isMap}}
-        {{^isMap}}
-        return new runtime.JSONApiResponse(response{{^withoutRuntimeChecks}}, (jsonValue) => {{returnBaseType}}FromJSON(jsonValue){{/withoutRuntimeChecks}});
-        {{/isMap}}
-        {{/isArray}}
-        {{/returnTypeIsPrimitive}}
-        {{/isResponseFile}}
-        {{/returnType}}
-        {{^returnType}}
-        return new runtime.VoidApiResponse(response);
-        {{/returnType}}
+        {{/is2xx}}
+        {{^is2xx}}
+        if (response.status === {{code}}) {
+            {{#vendorExtensions.oneOfTypes}}
+            try {
+                const errorBody = await response.clone().json();
+                let parsedError: any = null;
+                {{#vendorExtensions.oneOfTypes}}
+                try { parsedError = {{{.}}}FromJSON(errorBody); } catch (_) { }
+                if (parsedError != null) {
+                    this.handleErrorResponse({{code}}, parsedError, response);
+                    throw new runtime.ResponseError(response, 'Response returned an error code');
+                }
+                {{/vendorExtensions.oneOfTypes}}
+                this.handleErrorResponse({{code}}, null, response);
+            } catch (e) {
+                if (e instanceof runtime.ResponseError) throw e;
+                this.handleErrorResponse({{code}}, null, response);
+            }
+            {{/vendorExtensions.oneOfTypes}}
+            {{^vendorExtensions.oneOfTypes}}
+            {{#dataType}}
+            try {
+                const errorBody = await response.clone().json();
+                {{^withoutRuntimeChecks}}
+                const parsedError = {{dataType}}FromJSON(errorBody);
+                {{/withoutRuntimeChecks}}
+                {{#withoutRuntimeChecks}}
+                const parsedError = errorBody;
+                {{/withoutRuntimeChecks}}
+                this.handleErrorResponse({{code}}, parsedError, response);
+            } catch (e) {
+                this.handleErrorResponse({{code}}, null, response);
+            }
+            {{/dataType}}
+            {{^dataType}}
+            this.handleErrorResponse({{code}}, null, response);
+            {{/dataType}}
+            {{/vendorExtensions.oneOfTypes}}
+            throw new runtime.ResponseError(response, 'Response returned an error code');
+        }
+        {{/is2xx}}
+        {{/responses}}
+        
+        // If we reach here, status code was not handled - throw generic error
+        this.handleErrorResponse(response.status, null, response);
+        throw new runtime.ResponseError(response, `Unexpected status code: ${response.status}`);
     }
 
     /**
@@ -418,21 +470,26 @@ export class {{classname}} extends runtime.BaseAPI {
     async {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{#isEnum}}{{{datatypeWithEnum}}}{{/isEnum}}{{^isEnum}}{{{dataType}}}{{#isNullable}} | null{{/isNullable}}{{/isEnum}}, {{/allParams}}initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<{{{returnType}}}{{#returnType}}{{#isResponseOptional}} | null | undefined {{/isResponseOptional}}{{/returnType}}{{^returnType}}void{{/returnType}}> {
         {{#returnType}}
         const response = await this.{{nickname}}Raw({{#allParams.0}}{ {{#allParams}}{{paramName}}: {{paramName}}{{^-last}}, {{/-last}}{{/allParams}} }, {{/allParams.0}}initOverrides);
-        {{#isResponseOptional}}
-        switch (response.raw.status) {
-            {{#responses}}
-            {{#is2xx}}
-            case {{code}}:
-                return {{#dataType}}await response.value(){{/dataType}}{{^dataType}}null{{/dataType}};
-            {{/is2xx}}
-            {{/responses}}
-            default:
-                return await response.value();
+        // If we reach here, status is 2xx (error responses throw in *Raw method)
+        if (response.raw.status >= 200 && response.raw.status < 300) {
+            {{#isResponseOptional}}
+            switch (response.raw.status) {
+                {{#responses}}
+                {{#is2xx}}
+                case {{code}}:
+                    return {{#dataType}}await response.value(){{/dataType}}{{^dataType}}null{{/dataType}};
+                {{/is2xx}}
+                {{/responses}}
+                default:
+                    return await response.value();
+            }
+            {{/isResponseOptional}}
+            {{^isResponseOptional}}
+            return await response.value();
+            {{/isResponseOptional}}
         }
-        {{/isResponseOptional}}
-        {{^isResponseOptional}}
-        return await response.value();
-        {{/isResponseOptional}}
+        // This should never be reached, but TypeScript requires it
+        throw new Error('Unexpected response status');
         {{/returnType}}
         {{^returnType}}
         await this.{{nickname}}Raw({{#allParams.0}}{ {{#allParams}}{{paramName}}: {{paramName}}{{^-last}}, {{/-last}}{{/allParams}} }, {{/allParams.0}}initOverrides);
@@ -443,21 +500,26 @@ export class {{classname}} extends runtime.BaseAPI {
     async {{nickname}}({{#allParams.0}}requestParameters: {{#prefixParameterInterfaces}}{{classname}}{{/prefixParameterInterfaces}}{{operationIdCamelCase}}Request{{^hasRequiredParams}} = {}{{/hasRequiredParams}}, {{/allParams.0}}initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<{{{returnType}}}{{#returnType}}{{#isResponseOptional}} | null | undefined {{/isResponseOptional}}{{/returnType}}{{^returnType}}void{{/returnType}}> {
         {{#returnType}}
         const response = await this.{{nickname}}Raw({{#allParams.0}}requestParameters, {{/allParams.0}}initOverrides);
-        {{#isResponseOptional}}
-        switch (response.raw.status) {
-            {{#responses}}
-            {{#is2xx}}
-            case {{code}}:
-                return {{#dataType}}await response.value(){{/dataType}}{{^dataType}}null{{/dataType}};
-            {{/is2xx}}
-            {{/responses}}
-            default:
-                return await response.value();
+        // If we reach here, status is 2xx (error responses throw in *Raw method)
+        if (response.raw.status >= 200 && response.raw.status < 300) {
+            {{#isResponseOptional}}
+            switch (response.raw.status) {
+                {{#responses}}
+                {{#is2xx}}
+                case {{code}}:
+                    return {{#dataType}}await response.value(){{/dataType}}{{^dataType}}null{{/dataType}};
+                {{/is2xx}}
+                {{/responses}}
+                default:
+                    return await response.value();
+            }
+            {{/isResponseOptional}}
+            {{^isResponseOptional}}
+            return await response.value();
+            {{/isResponseOptional}}
         }
-        {{/isResponseOptional}}
-        {{^isResponseOptional}}
-        return await response.value();
-        {{/isResponseOptional}}
+        // This should never be reached, but TypeScript requires it
+        throw new Error('Unexpected response status');
         {{/returnType}}
         {{^returnType}}
         await this.{{nickname}}Raw({{#allParams.0}}requestParameters, {{/allParams.0}}initOverrides);

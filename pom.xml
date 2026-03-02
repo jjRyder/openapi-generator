@@ -477,6 +477,30 @@
                 </plugins>
             </build>
         </profile>
+        <!-- Publish to GitHub Packages. Override for local: -Dgithub.packages.owner=USER -Dgithub.packages.repo=REPO -->
+        <profile>
+            <id>github-packages</id>
+            <properties>
+                <!-- Replace or pass -D; in CI set env GITHUB_REPOSITORY_OWNER and GITHUB_REPOSITORY_NAME -->
+                <github.packages.owner>${env.GITHUB_REPOSITORY_OWNER}</github.packages.owner>
+                <github.packages.repo>${env.GITHUB_REPOSITORY_NAME}</github.packages.repo>
+            </properties>
+            <distributionManagement>
+                <repository>
+                    <id>github</id>
+                    <name>GitHub Packages</name>
+                    <url>https://maven.pkg.github.com/${github.packages.owner}/${github.packages.repo}</url>
+                </repository>
+                <snapshotRepository>
+                    <id>github</id>
+                    <name>GitHub Packages (Snapshots)</name>
+                    <url>https://maven.pkg.github.com/${github.packages.owner}/${github.packages.repo}</url>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </snapshotRepository>
+            </distributionManagement>
+        </profile>
         <profile>
             <id>release-sign-artifacts</id>
             <activation>

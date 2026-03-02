@@ -1,5 +1,14 @@
 <h1 align="center">OpenAPI Generator</h1>
 
+This fork extends the **typescript-fetch** generator with:
+
+- **oneOf support** — API responses (including error responses) whose schema uses OpenAPI 3.x `oneOf` are generated as TypeScript union types (`A | B | C`), with runtime handling that tries each type when deserializing.
+- **Structured error handling** — All response status codes are handled in generated code; error response bodies are deserialized (single type or oneOf) and passed into a single callback. The runtime keeps returning a `Response` for non-2xx instead of throwing, so callers can handle status and body in one place.
+- **`onErrorResponse` callback** — In `ConfigurationParameters`, an optional `onErrorResponse(status, body, response)` lets the app handle all error responses in one place (e.g. i18n, toasts, logging when `body === null`).
+
+Implemented via patches to `TypeScriptFetchClientCodegen`, `apis.mustache`, and `runtime.mustache`.
+
+---
 
 <div align="center">
 

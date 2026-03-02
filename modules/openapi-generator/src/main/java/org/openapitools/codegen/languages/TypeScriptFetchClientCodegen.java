@@ -712,6 +712,7 @@ public class TypeScriptFetchClientCodegen extends AbstractTypeScriptClientCodege
         }
 
         this.addOperationModelImportInformation(operations);
+        this.fixOneOfResponseTypes(operations);
         this.escapeOperationIds(operations);
         this.updateOperationParameterForEnum(operations);
         if (this.getSagasAndRecords()) {
@@ -721,6 +722,52 @@ public class TypeScriptFetchClientCodegen extends AbstractTypeScriptClientCodege
         this.addOperationPrefixParameterInterfacesInformation(operations);
 
         return operations;
+    }
+
+    /**
+     * For each response with a oneOf schema, set dataType to a TypeScript union (A | B | C)
+     * and add x-response-oneOf-types to vendorExtensions so the template can iterate and try each type.
+     */
+    private void fixOneOfResponseTypes(OperationsMap operations) {
+        if (operations.getOperations() == null || operations.getOperations().getOperation() == null) {
+            return;
+        }
+        for (CodegenOperation op : operations.getOperations().getOperation()) {
+            if (op.responses == null) {
+                continue;
+            }
+            for (CodegenResponse r : op.responses) {
+                Object schemaObj = r.schema;
+                if (!(schemaObj instanceof Schema)) {
+                    continue;
+                }
+                Schema schema = (Schema) schemaObj;
+                if (!ModelUtils.isOneOf(schema) || schema.getOneOf() == null || schema.getOneOf().isEmpty()) {
+                    continue;
+                }
+                List<String> typeNames = new ArrayList<>();
+                for (Object o : schema.getOneOf()) {
+                    if (!(o instanceof Schema)) {
+                        continue;
+                    }
+                    Schema oneOfSchema = (Schema) o;
+                    if (oneOfSchema.get$ref() != null) {
+                        String ref = ModelUtils.getSimpleRef(oneOfSchema.get$ref());
+                        if (ref != null) {
+                            typeNames.add(toModelName(ref));
+                        }
+                    }
+                }
+                if (!typeNames.isEmpty()) {
+                    r.dataType = String.join(" | ", typeNames);
+                    r.vendorExtensions.put("x-response-oneOf-types", typeNames);
+                    r.vendorExtensions.put("oneOfTypes", typeNames);
+                    if (op.imports != null) {
+                        op.imports.addAll(typeNames);
+                    }
+                }
+            }
+        }
     }
 
     @Override

@@ -16,6 +16,7 @@ export interface ConfigurationParameters {
     accessToken?: string | Promise<string> | ((name?: string, scopes?: string[]) => string | Promise<string>); // parameter for oauth2 security
     headers?: HTTPHeaders; //header params we want to use on every request
     credentials?: RequestCredentials; //value for the credentials param we want to use on each request
+    onErrorResponse?: (status: number, body: any, response: Response) => void; // callback for error responses (non-2xx status codes)
 }
 
 export class Configuration {
@@ -72,6 +73,10 @@ export class Configuration {
     get credentials(): RequestCredentials | undefined {
         return this.configuration.credentials;
     }
+
+    get onErrorResponse(): ((status: number, body: any, response: Response) => void) | undefined {
+        return this.configuration.onErrorResponse;
+    }
 }
 
 export const DefaultConfig = new Configuration();
@@ -124,10 +129,20 @@ export class BaseAPI {
     protected async request(context: RequestOpts, initOverrides?: RequestInit | InitOverrideFunction): Promise<Response> {
         const { url, init } = await this.createFetchParams(context, initOverrides);
         const response = await this.fetchApi(url, init);
-        if (response && (response.status >= 200 && response.status < 300)) {
-            return response;
+        // Return response for all status codes - let *Raw methods handle them
+        return response;
+    }
+
+    /**
+     * Handle error response by calling the configured callback if available.
+     * @param status - HTTP status code
+     * @param body - Parsed response body
+     * @param response - Full Response object
+     */
+    protected handleErrorResponse(status: number, body: any, response: Response): void {
+        if (this.configuration.onErrorResponse) {
+            this.configuration.onErrorResponse(status, body, response);
         }
-        throw new ResponseError(response, 'Response returned an error code');
     }
 
     private async createFetchParams(context: RequestOpts, initOverrides?: RequestInit | InitOverrideFunction) {
