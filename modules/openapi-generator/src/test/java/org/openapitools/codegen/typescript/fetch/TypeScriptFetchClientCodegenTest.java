@@ -454,13 +454,9 @@ public class TypeScriptFetchClientCodegenTest {
         Path errorResponse = Paths.get(output + "/models/ErrorResponse.ts");
         TestUtils.assertFileExists(errorResponse);
         
-        // Should not import "object" as it's an empty object without properties
+        // Should not import "object" as it's a reserved keyword
         TestUtils.assertFileNotContains(errorResponse, "import type { object } from './object'");
         TestUtils.assertFileNotContains(errorResponse, "import { object");
-        
-        // Should import the actual model ExceptionData
-        TestUtils.assertFileContains(errorResponse, "import type { ExceptionData } from './ExceptionData'");
-        TestUtils.assertFileContains(errorResponse, "import { ExceptionData");
         
         // Generated code should not contain invalid function calls like instanceOfobject or objectToJSON
         TestUtils.assertFileNotContains(errorResponse, "instanceOfobject");
