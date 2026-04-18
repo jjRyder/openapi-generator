@@ -1,0 +1,39 @@
+openapi: 3.0.1
+info:
+  title: Example API
+  version: 1.0.0
+paths:
+  /api/endpoint:
+    get:
+      operationId: GetEndpoint
+      summary: Get endpoint
+      tags:
+        - Examples
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          format: uuid
+        data:
+          nullable: true
+          oneOf:
+            - $ref: '#/components/schemas/ExceptionData'
+        message:
+          type: string
+          nullable: true
+      required:
+        - code
+    ExceptionData:
+      type: object
+      additionalProperties: false

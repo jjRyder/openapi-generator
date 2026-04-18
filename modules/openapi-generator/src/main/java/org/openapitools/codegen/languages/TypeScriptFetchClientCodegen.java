@@ -864,6 +864,13 @@ public class TypeScriptFetchClientCodegen extends AbstractTypeScriptClientCodege
         // need to be imported.
         cm.oneOfModels = oneOfsList.stream()
                 .filter(cp -> !cp.getIsPrimitiveType() && !cp.getIsArray())
+                .filter(cp -> {
+                    // Exclude "object" type only if it has no properties (empty object)
+                    if ("object".equals(cp.getBaseType())) {
+                        return cp.getVars() != null && !cp.getVars().isEmpty();
+                    }
+                    return true;
+                })
                 .map(CodegenProperty::getBaseType)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(TreeSet::new));
@@ -872,6 +879,14 @@ public class TypeScriptFetchClientCodegen extends AbstractTypeScriptClientCodege
         // the oneOf uses Array<Foo>, Foo needs to be imported).
         cm.oneOfArrays = oneOfsList.stream()
                 .filter(CodegenProperty::getIsArray)
+                .filter(cp -> {
+                    // Exclude "object" type only if it has no properties (empty object)
+                    String complexType = cp.getComplexType();
+                    if ("object".equals(complexType)) {
+                        return cp.getVars() != null && !cp.getVars().isEmpty();
+                    }
+                    return true;
+                })
                 .map(CodegenProperty::getComplexType)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(TreeSet::new));

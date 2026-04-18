@@ -444,6 +444,29 @@ public class TypeScriptFetchClientCodegenTest {
         TestUtils.assertFileContains(testResponse, "import type { OptionThree } from './OptionThree'");
     }
 
+    @Test(description = "Exclude empty object type from oneOf model imports")
+    public void testEmptyObjectInOneOfDoesNotGenerateInvalidImports() throws IOException {
+        File output = generate(
+            Collections.emptyMap(),
+            "src/test/resources/3_0/typescript-fetch/empty-object-in-oneof.yaml"
+        );
+
+        Path errorResponse = Paths.get(output + "/models/ErrorResponse.ts");
+        TestUtils.assertFileExists(errorResponse);
+        
+        // Should not import "object" as it's an empty object without properties
+        TestUtils.assertFileNotContains(errorResponse, "import type { object } from './object'");
+        TestUtils.assertFileNotContains(errorResponse, "import { object");
+        
+        // Should import the actual model ExceptionData
+        TestUtils.assertFileContains(errorResponse, "import type { ExceptionData } from './ExceptionData'");
+        TestUtils.assertFileContains(errorResponse, "import { ExceptionData");
+        
+        // Generated code should not contain invalid function calls like instanceOfobject or objectToJSON
+        TestUtils.assertFileNotContains(errorResponse, "instanceOfobject");
+        TestUtils.assertFileNotContains(errorResponse, "objectToJSON");
+    }
+
     private static File generate(
         Map<String, Object> properties
     ) throws IOException {
